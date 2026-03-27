@@ -5,10 +5,12 @@ This document outlines the current checks implemented in the assessment notebook
 ## 01. Ingestion & Storage
 
 ### Current Checks in Codebase
-* Storage Model Optimization
+* Storage Model Optimization (Logical vs Physical cost comparison)
 * Data Layout: Detecting Date-Sharded Tables
-* Streaming Optimization
-* AI-Powered Recommendations
+* Streaming Optimization (Legacy inserts detection)
+* Time Travel & Fail-Safe Storage Cost Analysis
+* Unused / Stale Table Identification (90+ days unmodified)
+* AI-Powered Recommendations (Gemini)
 
 ### Enriched Best Practices
 * **Data Ingestion Methods:** Use `LOAD DATA` for bulk loads (free pool), **Storage Write API** for high-throughput streaming (exactly-once semantics), and **Datastream** for CDC from operational databases. Avoid frequent single-row inserts/updates.
@@ -19,12 +21,14 @@ This document outlines the current checks implemented in the assessment notebook
 ## 02. Processing & Performance
 
 ### Current Checks in Codebase
-* Pruning Efficiency
-* Acceleration Candidates
+* Pruning Efficiency (Scan Efficiency Ratio)
+* Acceleration Candidates (Materialized View candidates)
 * Spill-to-Disk Events
-* Anti-Patterns
+* Anti-Patterns (via BigQuery Anti-Pattern Recognition Tool UDF)
 * Google Cloud Recommendations
-* AI-Powered Recommendations
+* Query Execution Plan Analysis (slot duration ratio)
+* Vector Search / BQML Efficiency
+* AI-Powered Recommendations (Gemini)
 
 ### Enriched Best Practices
 * **Maximize Pruning:** Use constant expressions in partition filters. Isolate partition columns in comparisons.
@@ -37,10 +41,12 @@ This document outlines the current checks implemented in the assessment notebook
 ### Current Checks in Codebase
 * On-Demand vs. Slot Pricing Comparison
 * Slot Contention Analysis
-* Max Autoscaling Recommendation
-* Error Analysis
-* Google Cloud Recommendations
-* AI-Powered Recommendations
+* Max Autoscaling Recommendation (percentile-based)
+* Error Analysis (top error codes)
+* Google Cloud Recommendations (capacity-related)
+* Transition to BigQuery Editions
+* Workload Management / Concurrency (queue time analysis)
+* AI-Powered Recommendations (Gemini)
 
 ### Enriched Best Practices
 * **Editions & Autoscaling:** Utilize BigQuery Editions (Standard, Enterprise, Enterprise Plus) based on workload criticality. Leverage autoscaling to dynamically adjust compute capacity and only pay for used slots.
@@ -51,11 +57,13 @@ This document outlines the current checks implemented in the assessment notebook
 ## 04. Data Governance & Security
 
 ### Current Checks in Codebase
-* Audit Open Access Risks
-* Verify Row-Level Security
+* Audit Open Access Risks (IAM policy verification)
+* Data Catalog Verification (Dataplex glossaries, aspect types, entry types)
+* Data Profiling (SQL-based table profiling)
+* Row-Level (RLS) and Column-Level Security (CLS) Coverage
+* Authorized Views & Routines Validation
 * Verify Encryption (CMEK)
 * Data Quality Check (NULL Keys)
-* AI-Powered Recommendations
 
 ### Enriched Best Practices
 * **Granular IAM:** Apply the Principle of Least Privilege. Prefer Dataset-level roles for team access over Project-level roles. Use Google Groups for easier management at scale.
@@ -68,9 +76,11 @@ This document outlines the current checks implemented in the assessment notebook
 ### Current Checks in Codebase
 * Billing Export Readiness
 * Label Coverage Analysis
-* Chargeback Modeling
-* Commitment Gap Analysis
-* AI-Powered Recommendations
+* Chargeback Modeling (by user, $6.25/TiB On-Demand)
+* Commitment Gap Analysis (usage vs committed slots)
+* Tags vs. Labels (Resource Manager Tags for chargeback)
+* Idle Project / Dataset Cost Analysis
+* AI-Powered Recommendations (Gemini)
 
 ### Enriched Best Practices
 * **Standardized Labeling:** Implement a strict labeling taxonomy (e.g., `team`, `environment`, `cost-center`) on datasets, tables, jobs, and reservations. Automate via IaC (Terraform).

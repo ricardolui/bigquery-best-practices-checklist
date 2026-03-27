@@ -7,7 +7,7 @@
 
 
 ```python
-# Initialize gcloud for authentication in the notebook
+# Initialize gcloud for authentication in the notebook, if running outside from BigQuery
 !gcloud auth application-default login
 ```
 
@@ -24,7 +24,7 @@ client = bigquery.Client()
 
 # Configuration
 PROJECT_ID = client.project  # Uses default project from environment
-REGION = "region-us" # UPDATE THIS to your dataset region (e.g., region-eu, region-us-central1)
+REGION = "us" # UPDATE THIS to your dataset region (e.g., eu, us-central1)
 GEMINI_MODEL_NAME = "gemini-3-pro-preview" # Updated to use gemini-3-pro-preview
 VERTEX_AI_LOCATION = "global" # Vertex AI location for Gemini models
 GEMINI_ENDPOINT_URL = f"https://aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{VERTEX_AI_LOCATION}/publishers/google/models/{GEMINI_MODEL_NAME}"
@@ -34,13 +34,31 @@ print(f"Region: {REGION}")
 print(f"Gemini Endpoint: {GEMINI_ENDPOINT_URL}")
 ```
 
-
 ## 0. Pre-requirements
 
 This section sets up the necessary prerequisites for the notebook.
 
+### 0.1. Create BigQuery dataset
 
-### 0.1. Create Gemini Model
+Create a BigQuery dataset 
+
+
+```python
+create_model_sql = f"""
+CREATE SCHEMA IF NOT EXISTS `bq_bestpractices_checklist`
+OPTIONS (location = '{REGION}')
+"""
+
+try:
+    job = client.query(create_model_sql)
+    job.result()
+    print("Dataset created successfully.")
+except Exception as e:
+    print(f"Error creating model: {e}")
+
+```
+
+### 0.2. Create Gemini Model
 
 Create a BQML Remote Model that uses the Gemini model via DEFAULT connection for AI-powered recommendations.
 
@@ -52,30 +70,25 @@ REMOTE WITH CONNECTION DEFAULT
 OPTIONS (endpoint = '{GEMINI_ENDPOINT_URL}')
 """
 
-
 try:
     job = client.query(create_model_sql)
     job.result()
     print("Model created successfully.")
 except Exception as e:
     print(f"Error creating model: {e}")
-
 ```
 
-
-### 0.2. Create Organization-level View
+### 0.3. Create Organization-level View
 
 Create a dataset and a view that aggregates jobs from the top 20 projects in the organization. This view will be used as the source for the subsequent analysis.
 
 
 ```python
 setup_query = """
-CREATE SCHEMA IF NOT EXISTS bq_bestpractices_checklist;
-
 EXECUTE IMMEDIATE (
   (
     SELECT
-      'CREATE OR REPLACE VIEW `bq_best_practices_checklist.jobs_by_top_20_projects` AS (' ||
+      'CREATE OR REPLACE VIEW `bq_bestpractices_checklist.jobs_by_top_20_projects` AS (' ||
       STRING_AGG(
         'SELECT * FROM `' || project_id || '.region-us.INFORMATION_SCHEMA.JOBS_BY_PROJECT`',
         ' UNION ALL '
@@ -86,7 +99,7 @@ EXECUTE IMMEDIATE (
       FROM
         `region-us.INFORMATION_SCHEMA.JOBS_BY_ORGANIZATION`
       WHERE 
-        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL(30, DAY))
+        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
       GROUP BY
         1
       ORDER BY
@@ -101,11 +114,10 @@ EXECUTE IMMEDIATE (
 try:
     job = client.query(setup_query)
     job.result()
-    print("Dataset and View created successfully.")
+    print("View created successfully.")
 except Exception as e:
     print(f"Error creating view: {e}")
 ```
-
 
 ## 1. Storage Model Optimization
 
@@ -229,13 +241,14 @@ for index, row in df_storage_recommendations.iterrows():
         command = f"ALTER SCHEMA `{project}.{dataset_name}` SET OPTIONS (storage_billing_model = '{recommended_model}');"
         sql_commands.append(command)
 
-print("Generated SQL commands for manual execution:\n")
+print("--Generated SQL commands for manual execution:\n")
 for cmd in sql_commands:
     print(cmd)
 ```
 
-
 **Recommendation:** Review the generated `ALTER SCHEMA` commands and execute them to switch billing models for cost savings.
+
+**WARNING:** If you would like to implement the previous suggestions, run the next cell
 
 
 ```python
@@ -264,7 +277,6 @@ for i, cmd in enumerate(sql_commands):
 
 print("\nDynamic execution complete.")
 ```
-
 
 ## 2. Data Layout: Detecting Date-Sharded Tables
 
@@ -299,9 +311,7 @@ print("Top Date-Sharded Tables Candidates for Partitioning:")
 df_sharding.head()
 ```
 
-
 **Recommendation:** Convert sharded tables to partitioned tables to improve query performance and reduce metadata overhead.
-
 
 ## 3. Streaming Optimization
 
@@ -333,9 +343,7 @@ print("Top Tables using Legacy Streaming:")
 df_streaming.head()
 ```
 
-
 **Recommendation:** If `total_legacy_bytes` is high, consider switching to the BigQuery Storage Write API.
-
 
 ## 4. AI-Powered Recommendations
 
@@ -344,13 +352,15 @@ df_streaming.head()
 
 
 ```python
+import json
+from IPython.display import display, Markdown
+
 # Summarize findings for Gemini
 summary_text = f"""
 Audit Findings for Ingestion & Storage:
 1. Storage Model: Found {len(df_storage_recommendations)} datasets where switching billing models could save costs.
 2. Data Layout: Identified {len(df_sharding)} date-sharded tables that should be partitioned.
 3. Streaming: Found {len(df_streaming)} tables using legacy streaming inserts.
-4. Google Cloud Recommendations: Found {len(df_recommendations)} active recommendations.
 """
 
 # Construct the prompt
@@ -362,8 +372,8 @@ SELECT
   ml_generate_text_result['candidates'][0]['content'] AS recommendation
 FROM
   ML.GENERATE_TEXT(
-    MODEL `{PROJECT_ID}.bq_bestpractices_checklist.gemini`,
-    (SELECT '{prompt}' AS prompt),
+    MODEL `bq_bestpractices_checklist.gemini`,
+    (SELECT '''{prompt}''' AS prompt),
     STRUCT(
       0.2 AS temperature,
       8192 AS max_output_tokens
@@ -375,8 +385,23 @@ try:
     df_gemini = client.query(query_gemini).to_dataframe()
     print("AI-Powered Recommendations:")
     for index, row in df_gemini.iterrows():
-        print(row['recommendation'])
+        try:
+          # Parse the JSON string from Gemini
+          recommendation_data = json.loads(row['recommendation'])
+          
+          # Extract the text content
+          if 'parts' in recommendation_data and recommendation_data['parts']:
+              text_content = recommendation_data['parts'][0]['text']
+              display(Markdown(text_content))
+          else:
+              # Fallback if structure is different
+              print(row['recommendation'])
+                
+        except json.JSONDecodeError:
+            # Fallback if not valid JSON
+            print(row['recommendation'])
+        except Exception as e:
+            print(f"Error displaying recommendation: {e}")
 except Exception as e:
     print("Error calling Gemini. Ensure the model exists and you have permissions.", e)
 ```
-

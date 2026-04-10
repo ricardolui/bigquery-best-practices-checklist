@@ -29,7 +29,7 @@ client = bigquery.Client()
 # Configuration
 PROJECT_ID = client.project  # Uses default project from environment
 REGION = "region-us" # UPDATE THIS to your dataset region (e.g., region-eu, region-us-central1)
-GEMINI_MODEL_NAME = "gemini-3-pro-preview" # Updated to use gemini-3-pro-preview
+GEMINI_MODEL_NAME = "gemini-3.1-pro-preview" # Updated to use gemini-3.1-pro-preview
 VERTEX_AI_LOCATION = "global" # Vertex AI location for Gemini models
 GEMINI_ENDPOINT_URL = f"https://aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{VERTEX_AI_LOCATION}/publishers/google/models/{GEMINI_MODEL_NAME}"
 
@@ -148,21 +148,29 @@ except Exception as e:
 
 
 ### 2. Verify Row-Level Security
-Verify the existence of Row-Level Security policies.
+Verify the existence of Row-Level Security (RLS) policies using the BigQuery Python API. Note: `INFORMATION_SCHEMA.ROW_ACCESS_POLICIES` does not exist — use the REST API or Python client.
 
 
 ```python
-query_rls = f"""
-SELECT * 
-FROM `{region}.INFORMATION_SCHEMA.ROW_ACCESS_POLICIES`
-"""
-try:
-    df_rls = client.query(query_rls).to_dataframe()
-    print('RLS Policies Found:', len(df_rls))
-    display(df_rls.head())
-except Exception as e:
-    print(f'Error querying RLS (might not be enabled/visible): {e}')
-    df_rls = pd.DataFrame()
+# Query Row Access Policies (Using Python API)
+from google.cloud import bigquery
+client = bigquery.Client()
+
+def list_schema_row_policies(project, dataset):
+    tables = client.list_tables(f"{project}.{dataset}")
+    found = False
+    for table in tables:
+        try:
+            policies = client.list_row_access_policies(table.reference)
+            for policy in policies:
+                print(f"Table: {table.table_id}, Policy: {policy.policy_name}, Grantees: {policy.grantee_list}")
+                found = True
+        except Exception:
+            pass
+    if not found:
+        print("No row access policies found in dataset.")
+
+list_schema_row_policies(PROJECT_ID, DATASET_ID)
 ```
 
 
@@ -173,7 +181,7 @@ Verify usage of Customer Managed Encryption Keys.
 ```python
 query_cmek = f"""
 SELECT table_schema, table_name, option_value as kms_key_name
-FROM `{region}.INFORMATION_SCHEMA.TABLE_OPTIONS`
+FROM `region-{LOCATION}.INFORMATION_SCHEMA.TABLE_OPTIONS`
 WHERE option_name = 'kms_key_name'
 """
 try:

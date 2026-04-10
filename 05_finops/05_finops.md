@@ -29,7 +29,7 @@ client = bigquery.Client()
 # Configuration
 PROJECT_ID = client.project  # Uses default project from environment
 REGION = "region-us" # UPDATE THIS to your dataset region (e.g., region-eu, region-us-central1)
-GEMINI_MODEL_NAME = "gemini-3-pro-preview" # Updated to use gemini-3-pro-preview
+GEMINI_MODEL_NAME = "gemini-3.1-pro-preview" # Updated to use gemini-3.1-pro-preview
 VERTEX_AI_LOCATION = "global" # Vertex AI location for Gemini models
 GEMINI_ENDPOINT_URL = f"https://aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{VERTEX_AI_LOCATION}/publishers/google/models/{GEMINI_MODEL_NAME}"
 

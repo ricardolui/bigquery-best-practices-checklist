@@ -35,7 +35,7 @@ print(f"Gemini Endpoint: {GEMINI_ENDPOINT_URL}")
 ```
 
 
-## 0. Pre-requirements
+## 0. Prerequisites
 
 This section sets up the necessary prerequisites for the notebook.
 
@@ -47,7 +47,7 @@ Create a BQML Remote Model that uses the Gemini model via DEFAULT connection for
 
 ```python
 create_model_sql = f"""
-CREATE OR REPLACE MODEL `bq_bestpractices_checklist.gemini`
+CREATE OR REPLACE MODEL `bq_best_practices_checklist.gemini`
 REMOTE WITH CONNECTION DEFAULT
 OPTIONS (endpoint = '{GEMINI_ENDPOINT_URL}')
 """
@@ -70,7 +70,7 @@ Create a dataset and a view that aggregates jobs from the top 20 projects in the
 
 ```python
 setup_query = """
-CREATE SCHEMA IF NOT EXISTS bq_bestpractices_checklist;
+CREATE SCHEMA IF NOT EXISTS bq_best_practices_checklist;
 
 EXECUTE IMMEDIATE (
   (
@@ -86,7 +86,7 @@ EXECUTE IMMEDIATE (
       FROM
         `region-us.INFORMATION_SCHEMA.JOBS_BY_ORGANIZATION`
       WHERE 
-        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL(30, DAY))
+        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
       GROUP BY
         1
       ORDER BY
@@ -129,7 +129,7 @@ SELECT
   (total_slot_ms / (1000 * 3600)) * 0.06 AS estimated_slot_cost,
   query
 FROM
-  `{PROJECT_ID}.bq_bestpractices_checklist.jobs_by_top_20_projects`
+  `{PROJECT_ID}.bq_best_practices_checklist.jobs_by_top_20_projects`
 WHERE
   creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
   AND job_type = 'QUERY'
@@ -212,7 +212,7 @@ SELECT
   AVG(TIMESTAMP_DIFF(start_time, creation_time, MILLISECOND)) as avg_pending_ms,
   MAX(TIMESTAMP_DIFF(start_time, creation_time, MILLISECOND)) as max_pending_ms
 FROM
-  `{PROJECT_ID}.bq_bestpractices_checklist.jobs_by_top_20_projects`
+  `{PROJECT_ID}.bq_best_practices_checklist.jobs_by_top_20_projects`
 WHERE
   creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
   AND state = 'DONE'
@@ -241,7 +241,7 @@ df_contention.head(10)
 query_max_autoscaling = f'''
 WITH per_minute_avg_slots AS (
   SELECT
-    DATE_TRUNC(job_creation_time, MINUTE) AS minute_start,
+    TIMESTAMP_TRUNC(job_creation_time, MINUTE) AS minute_start,
     AVG(period_slot_ms) AS avg_slots_per_minute
   FROM
     `region-us`.INFORMATION_SCHEMA.JOBS_TIMELINE_BY_ORGANIZATION
@@ -366,7 +366,7 @@ except Exception as e:
 
 ```python
 %%bigquery
-CREATE OR REPLACE MODEL `bq_bestpractices_checklist.gemini`
+CREATE OR REPLACE MODEL `bq_best_practices_checklist.gemini`
 REMOTE WITH CONNECTION `us.llm`
 OPTIONS (endpoint = 'https://aiplatform.googleapis.com/v1/projects/dataml-latam-argolis/locations/global/publishers/google/models/gemini-3.1-pro-preview')
 ```
@@ -395,7 +395,7 @@ SELECT
   ml_generate_text_result['candidates'][0]['content'] AS recommendation
 FROM
   ML.GENERATE_TEXT(
-    MODEL `{PROJECT_ID}.bq_bestpractices_checklist.gemini`,
+    MODEL `{PROJECT_ID}.bq_best_practices_checklist.gemini`,
     (SELECT '''{escaped_prompt}''' AS prompt),
     STRUCT(
       0.2 AS temperature,

@@ -35,7 +35,7 @@ print(f"Gemini Endpoint: {GEMINI_ENDPOINT_URL}")
 ```
 
 
-## 0. Pre-requirements
+## 0. Prerequisites
 
 This section sets up the necessary prerequisites for the notebook.
 
@@ -47,7 +47,7 @@ Create a BQML Remote Model that uses the Gemini model via DEFAULT connection for
 
 ```python
 create_model_sql = f"""
-CREATE OR REPLACE MODEL `bq_bestpractices_checklist.gemini`
+CREATE OR REPLACE MODEL `bq_best_practices_checklist.gemini`
 REMOTE WITH CONNECTION DEFAULT
 OPTIONS (endpoint = '{GEMINI_ENDPOINT_URL}')
 """
@@ -70,7 +70,7 @@ Create a dataset and a view that aggregates jobs from the top 20 projects in the
 
 ```python
 setup_query = """
-CREATE SCHEMA IF NOT EXISTS bq_bestpractices_checklist;
+CREATE SCHEMA IF NOT EXISTS bq_best_practices_checklist;
 
 EXECUTE IMMEDIATE (
   (
@@ -86,7 +86,7 @@ EXECUTE IMMEDIATE (
       FROM
         `region-us.INFORMATION_SCHEMA.JOBS_BY_ORGANIZATION`
       WHERE 
-        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL(30, DAY))
+        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
       GROUP BY
         1
       ORDER BY
@@ -109,7 +109,7 @@ except Exception as e:
 
 ```python
 # First, ensure the schema exists
-create_schema_query = f"CREATE SCHEMA IF NOT EXISTS `{PROJECT_ID}`.bq_bestpractices_checklist OPTIONS(location='{REGION}');"
+create_schema_query = f"CREATE SCHEMA IF NOT EXISTS `{PROJECT_ID}`.bq_best_practices_checklist OPTIONS(location='{REGION}');"
 try:
     print(f"Attempting to create schema: {create_schema_query}")
     job = client.query(create_schema_query)
@@ -124,7 +124,7 @@ except Exception as e:
 setup_view_query = f'''
 EXECUTE IMMEDIATE(
     SELECT
-      'CREATE OR REPLACE VIEW `{PROJECT_ID}.bq_bestpractices_checklist.jobs_by_top_20_projects` AS (' ||
+      'CREATE OR REPLACE VIEW `{PROJECT_ID}.bq_best_practices_checklist.jobs_by_top_20_projects` AS (' ||
       STRING_AGG(
         'SELECT * FROM `' || project_id || '.region-us.INFORMATION_SCHEMA.JOBS_BY_PROJECT`',
         ' UNION ALL '
@@ -174,7 +174,7 @@ SELECT
   SAFE_DIVIDE(total_bytes_billed, total_bytes_processed) AS scan_efficiency_ratio,
   query
 FROM
- `{PROJECT_ID}.bq_bestpractices_checklist.jobs_by_top_20_projects`
+ `{PROJECT_ID}.bq_best_practices_checklist.jobs_by_top_20_projects`
 WHERE
   creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
   AND total_bytes_processed > 0
@@ -212,7 +212,7 @@ SELECT
   SUM(total_slot_ms) / 1000 / 3600 AS total_slot_hours,
   ANY_VALUE(query) as sample_query
 FROM
-  `{PROJECT_ID}.bq_bestpractices_checklist.jobs_by_top_20_projects`
+  `{PROJECT_ID}.bq_best_practices_checklist.jobs_by_top_20_projects`
 WHERE
   creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
   AND job_type = 'QUERY'
@@ -253,7 +253,7 @@ SELECT
   (SELECT SUM(shuffle_output_bytes_spilled) FROM UNNEST(job_stages)) / 1024 / 1024 / 1024 AS total_gb_spilled,
   query
 FROM
- `{PROJECT_ID}.bq_bestpractices_checklist.jobs_by_top_20_projects`
+ `{PROJECT_ID}.bq_best_practices_checklist.jobs_by_top_20_projects`
 WHERE
   creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
   AND EXISTS (SELECT 1 FROM UNNEST(job_stages) WHERE shuffle_output_bytes_spilled > 0)
@@ -293,7 +293,7 @@ SELECT
   query,
   `{PROJECT_ID}.fns.get_antipatterns`(query) AS anti_patterns
 FROM
-  `{PROJECT_ID}.bq_bestpractices_checklist.jobs_by_top_20_projects`
+  `{PROJECT_ID}.bq_best_practices_checklist.jobs_by_top_20_projects`
 WHERE
   creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
   AND job_type = 'QUERY'
@@ -360,7 +360,7 @@ except Exception as e:
 
 ```python
 %%bigquery
-CREATE OR REPLACE MODEL `bq_bestpractices_checklist.gemini`
+CREATE OR REPLACE MODEL `bq_best_practices_checklist.gemini`
 REMOTE WITH CONNECTION `us.llm`
 OPTIONS (endpoint = 'https://aiplatform.googleapis.com/v1/projects/dataml-latam-argolis/locations/global/publishers/google/models/gemini-3.1-pro-preview')
 ```
@@ -386,7 +386,7 @@ SELECT
   ml_generate_text_result['candidates'][0]['content'] AS recommendation
 FROM
   ML.GENERATE_TEXT(
-    MODEL `{PROJECT_ID}.bq_bestpractices_checklist.gemini`,
+    MODEL `{PROJECT_ID}.bq_best_practices_checklist.gemini`,
     (SELECT '''{prompt.replace("'", "''")}''' AS prompt),
     STRUCT(
       0.2 AS temperature,

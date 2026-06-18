@@ -24,7 +24,7 @@ client = bigquery.Client()
 
 # Configuration
 PROJECT_ID = client.project  # Uses default project from environment
-REGION = "region-us" # UPDATE THIS to your dataset region (e.g., region-eu, region-us-central1)
+REGION = "us" # UPDATE THIS to your dataset region (e.g., region-eu, region-us-central1)
 GEMINI_MODEL_NAME = "gemini-3.1-pro-preview" # Updated to use gemini-3.1-pro-preview
 
 VERTEX_AI_LOCATION = "global" # Vertex AI location for Gemini models
@@ -35,7 +35,7 @@ print(f"Region: {REGION}")
 print(f"Gemini Endpoint: {GEMINI_ENDPOINT_URL}")
 ```
 
-## 0. Pre-requirements
+## 0. Prerequisites
 
 This section sets up the necessary prerequisites for the notebook.
 
@@ -46,7 +46,7 @@ Create a BigQuery dataset
 
 ```python
 create_model_sql = f"""
-CREATE SCHEMA IF NOT EXISTS `bq_bestpractices_checklist`
+CREATE SCHEMA IF NOT EXISTS `bq_best_practices_checklist`
 OPTIONS (location = '{REGION}')
 """
 
@@ -66,7 +66,7 @@ Create a BQML Remote Model that uses the Gemini model via DEFAULT connection for
 
 ```python
 create_model_sql = f"""
-CREATE OR REPLACE MODEL `bq_bestpractices_checklist.gemini`
+CREATE OR REPLACE MODEL `bq_best_practices_checklist.gemini`
 REMOTE WITH CONNECTION DEFAULT
 OPTIONS (endpoint = '{GEMINI_ENDPOINT_URL}')
 """
@@ -89,7 +89,7 @@ setup_query = """
 EXECUTE IMMEDIATE (
   (
     SELECT
-      'CREATE OR REPLACE VIEW `bq_bestpractices_checklist.jobs_by_top_20_projects` AS (' ||
+      'CREATE OR REPLACE VIEW `bq_best_practices_checklist.jobs_by_top_20_projects` AS (' ||
       STRING_AGG(
         'SELECT * FROM `' || project_id || '.region-us.INFORMATION_SCHEMA.JOBS_BY_PROJECT`',
         ' UNION ALL '
@@ -346,6 +346,65 @@ df_streaming.head()
 
 **Recommendation:** If `total_legacy_bytes` is high, consider switching to the BigQuery Storage Write API.
 
+## 5. Time Travel & Fail-Safe Storage Cost Analysis
+This check identifies tables with high time-travel storage costs. You can adjust the time travel window (e.g., from 7 days down to 2 days) for non-critical datasets to save costs.
+
+```python
+# Time Travel Storage Analysis
+query = f"""
+SELECT
+  table_schema,
+  table_name,
+  total_logical_bytes,
+  total_physical_bytes,
+  time_travel_physical_bytes,
+  fail_safe_physical_bytes
+FROM
+  `region-{REGION}`.INFORMATION_SCHEMA.TABLE_STORAGE_BY_PROJECT
+WHERE
+  time_travel_physical_bytes > 0
+  AND deleted = false
+ORDER BY
+  time_travel_physical_bytes DESC
+LIMIT 10;
+"""
+try:
+    df_time_travel = client.query(query).to_dataframe()
+    display(df_time_travel)
+except Exception as e:
+    print(f"Could not query time travel storage: {e}")
+```
+
+## 6. Unused / Stale Table Identification
+This check flags large tables that haven't been queried or updated recently (e.g., over 90 days) for potential archival.
+
+```python
+# Stale Tables Analysis (Unused in 90+ days)
+# Using storage_last_modified_time as the correct metric for staleness.
+query = f"""
+SELECT
+  table_schema,
+  table_name,
+  storage_last_modified_time,
+  SAFE_DIVIDE(total_logical_bytes, POW(1024, 3)) AS total_logical_gib,
+  total_rows
+FROM
+  `region-{REGION}`.INFORMATION_SCHEMA.TABLE_STORAGE_BY_PROJECT
+WHERE
+  deleted = false
+  AND storage_last_modified_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
+  AND total_logical_bytes > 0
+ORDER BY
+  total_logical_bytes DESC
+LIMIT 10;
+"""
+try:
+    df_stale = client.query(query).to_dataframe()
+    display(df_stale)
+except Exception as e:
+    print(f"Error checking stale tables: {e}")
+```
+
 ## 4. AI-Powered Recommendations
 
 **Objective:** Use Generative AI to synthesize findings.
@@ -373,7 +432,7 @@ SELECT
   ml_generate_text_result['candidates'][0]['content'] AS recommendation
 FROM
   ML.GENERATE_TEXT(
-    MODEL `bq_bestpractices_checklist.gemini`,
+    MODEL `bq_best_practices_checklist.gemini`,
     (SELECT '''{prompt}''' AS prompt),
     STRUCT(
       0.2 AS temperature,

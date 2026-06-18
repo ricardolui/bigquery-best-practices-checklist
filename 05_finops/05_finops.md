@@ -39,7 +39,7 @@ print(f"Gemini Endpoint: {GEMINI_ENDPOINT_URL}")
 ```
 
 
-## 0. Pre-requirements
+## 0. Prerequisites
 
 This section sets up the necessary prerequisites for the notebook.
 
@@ -51,7 +51,7 @@ Create a BQML Remote Model that uses the Gemini model via DEFAULT connection for
 
 ```python
 create_model_sql = f"""
-CREATE OR REPLACE MODEL `bq_bestpractices_checklist.gemini`
+CREATE OR REPLACE MODEL `bq_best_practices_checklist.gemini`
 REMOTE WITH CONNECTION DEFAULT
 OPTIONS (endpoint = '{GEMINI_ENDPOINT_URL}')
 """
@@ -74,7 +74,7 @@ Create a dataset and a view that aggregates jobs from the top 20 projects in the
 
 ```python
 setup_query = """
-CREATE SCHEMA IF NOT EXISTS bq_bestpractices_checklist;
+CREATE SCHEMA IF NOT EXISTS bq_best_practices_checklist;
 
 EXECUTE IMMEDIATE (
   (
@@ -90,7 +90,7 @@ EXECUTE IMMEDIATE (
       FROM
         `region-us.INFORMATION_SCHEMA.JOBS_BY_ORGANIZATION`
       WHERE 
-        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL(30, DAY))
+        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
       GROUP BY
         1
       ORDER BY
@@ -168,7 +168,7 @@ WITH JobLabels AS (
         job_id,
         total_bytes_billed,
         total_slot_ms,
-        (SELECT COUNT(*) FROM UNNEST(job_labels)) AS label_count
+        (SELECT COUNT(*) FROM UNNEST(labels)) AS label_count
     FROM
         `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT -- Adjust region if necessary
     WHERE
@@ -195,7 +195,7 @@ if not label_coverage_df.empty and label_coverage_df['pct_bytes_unlabeled'].iloc
 
 
 ### 3. Chargeback Modeling
-Simulate a chargeback invoice by aggregating costs by User/Principal. We assume a standard on-demand rate ($5/TB) for estimation purposes if pricing data isn't directly available.
+Simulate a chargeback invoice by aggregating costs by User/Principal. We use the standard US multi-region on-demand rate ($6.25/TiB) for estimation. if pricing data isn't directly available.
 
 
 ```python

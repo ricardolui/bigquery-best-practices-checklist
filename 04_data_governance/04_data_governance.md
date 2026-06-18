@@ -39,7 +39,7 @@ print(f"Gemini Endpoint: {GEMINI_ENDPOINT_URL}")
 ```
 
 
-## 0. Pre-requirements
+## 0. Prerequisites
 
 This section sets up the necessary prerequisites for the notebook.
 
@@ -51,7 +51,7 @@ Create a BQML Remote Model that uses the Gemini model via DEFAULT connection for
 
 ```python
 create_model_sql = f"""
-CREATE OR REPLACE MODEL `bq_bestpractices_checklist.gemini`
+CREATE OR REPLACE MODEL `bq_best_practices_checklist.gemini`
 REMOTE WITH CONNECTION DEFAULT
 OPTIONS (endpoint = '{GEMINI_ENDPOINT_URL}')
 """
@@ -74,7 +74,7 @@ Create a dataset and a view that aggregates jobs from the top 20 projects in the
 
 ```python
 setup_query = """
-CREATE SCHEMA IF NOT EXISTS bq_bestpractices_checklist;
+CREATE SCHEMA IF NOT EXISTS bq_best_practices_checklist;
 
 EXECUTE IMMEDIATE (
   (
@@ -90,7 +90,7 @@ EXECUTE IMMEDIATE (
       FROM
         `region-us.INFORMATION_SCHEMA.JOBS_BY_ORGANIZATION`
       WHERE 
-        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL(30, DAY))
+        creation_time > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
       GROUP BY
         1
       ORDER BY
@@ -134,7 +134,7 @@ Identify datasets accessible by `allUsers` or `allAuthenticatedUsers`.
 ```python
 query_open_access = f"""
 SELECT * 
-FROM `{region}.INFORMATION_SCHEMA.OBJECT_PRIVILEGES`
+FROM `{REGION}.INFORMATION_SCHEMA.OBJECT_PRIVILEGES`
 WHERE grantee IN ('allUsers', 'allAuthenticatedUsers')
 """
 try:
@@ -158,19 +158,20 @@ client = bigquery.Client()
 
 def list_schema_row_policies(project, dataset):
     tables = client.list_tables(f"{project}.{dataset}")
-    found = False
+    found_policies = []
     for table in tables:
         try:
             policies = client.list_row_access_policies(table.reference)
             for policy in policies:
                 print(f"Table: {table.table_id}, Policy: {policy.policy_name}, Grantees: {policy.grantee_list}")
-                found = True
+                found_policies.append(policy)
         except Exception:
             pass
-    if not found:
+    if not found_policies:
         print("No row access policies found in dataset.")
+    return found_policies
 
-list_schema_row_policies(PROJECT_ID, DATASET_ID)
+df_rls = list_schema_row_policies(PROJECT_ID, DATASET_ID)
 ```
 
 
@@ -202,7 +203,7 @@ Identify Partition/Clustering keys and check for NULL values.
 # Find keys
 query_keys = f"""
 SELECT table_schema, table_name, column_name
-FROM `{region}.INFORMATION_SCHEMA.COLUMNS`
+FROM `{REGION}.INFORMATION_SCHEMA.COLUMNS`
 WHERE is_partitioning_column = 'YES' OR clustering_ordinal_position IS NOT NULL
 LIMIT 10 -- Limiting for demo purposes
 """
